@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+						http://www.springframework.org/schema/beans/spring-beans.xsd">
+	
+	<!-- 创建日志任务bean -->
+	<!-- <bean id="createLogTablesTask" class="me.zhli.web.surveypark.scheduler.CreateLogTablesTask"></bean> -->
+	<!-- 任务明细 -->
+	<bean id="jobDetailBean" class="org.springframework.scheduling.quartz.JobDetailFactoryBean">
+		<!-- 通过任务类指定石英任务 -->
+		<property name="jobClass" value="me.zhli.web.surveypark.scheduler.CreateLogTablesTask"></property>
+		<property name="jobDataMap">
+			<map>
+				<entry key="logService" value-ref="logService"></entry>
+			</map>
+		</property>
+	</bean>
+	
+	<!-- 设置触发器, 设置石英任务的调度策略 -->
+	<bean id="cronTriggerBean" class="org.springframework.scheduling.quartz.CronTriggerFactoryBean">
+		<property name="jobDetail" ref="jobDetailBean" />
+		<property name="cronExpression">
+			<!-- cron 表达式 -->
+			<!-- 秒	分	时	天	月	星期		年(不写表示本年) -->
+			<!-- 可以用 "," 分隔，可以用 "-" 连续 "?" 不设置，用默认的 "*" 任意通配符 -->
+			<!-- 每个月 15 号 0 点 -->
+			<!-- <value>0 0 0 15 * ?</value> -->
+			<value>0 40 9 12 * ?</value>
+		</property>
+	</bean>
+	
+	<!-- 调度工厂 bean: 激活触发器的运行 -->
+	<bean id="" class="org.springframework.scheduling.quartz.SchedulerFactoryBean">
+		<property name="triggers">
+			<list>
+				<ref bean="cronTriggerBean"/>
+			</list>
+		</property>
+	</bean>
+</beans>

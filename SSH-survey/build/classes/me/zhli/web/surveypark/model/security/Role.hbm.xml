@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="me.zhli.web.surveypark.model.security">
+    <class name="Role" table="ROLES">
+        <id name="id" type="java.lang.Integer">
+            <column name="ID" />
+            <generator class="native" />
+        </id>
+        <property name="roleName" type="java.lang.String">
+            <column name="ROLENAME" />
+        </property>
+        <property name="roleValue" type="java.lang.String">
+            <column name="ROLEVALUE" />
+        </property>
+        <property name="roleDesc" type="java.lang.String">
+            <column name="ROLEDESC" />
+        </property>
+        
+        <set name="rights" table="role_right_link" lazy="false">
+        	<key column="roleid" />
+        	<many-to-many class="Right" column="rightid"></many-to-many>
+        </set>
+    </class>
+</hibernate-mapping>

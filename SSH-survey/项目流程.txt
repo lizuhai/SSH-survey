@@ -1,0 +1,1609 @@
+1. 到注册页面
+	> navigator -> 注册页 （RegAction_toRegPage -> reg.jsp)
+		i.  <action name="RegAction_*" class="regAction" method="{1}">
+				<result name="regPage">/reg.jsp</result>
+				<result name="input">/reg.jsp</result>
+			</action>
+		ii. 写 regAction 类的 toRegPage 方法
+		    public String toRegPage() {
+				return "regPage";
+			}
+	> 注册新用户(RegAction_doReg)
+		i. 检验表单
+			public void validate() {
+				// not null
+				// 密码一致性
+				// email 是否已经被占用了
+			}
+			注意：要给 toRegPage 加上 @SkipValidation 的注解，即用这个方法时不检验表单
+			public String doReg() {
+				// model
+				// 密码加密
+				// save
+				// return
+			}
+		ii. <action name="RegAction_*" class="regAction" method="{1}">
+	    		<result name="input">/reg.jsp</result>
+	    		<result name="success">/index.jsp</result>
+    		</action>
+		iii. 保存记录
+			注意：密码要加密成 32 位
+
+2. 到登陆页
+	> navigator -> 首页 （LoginAction_toLoginPage -> index.jsp)
+		i.  <action name="LoginAction_*" class="loginAction" method="{1}">
+				<result name="loginPage">/index.jsp</result>
+				<result name="input">/index.jsp</result>
+			</action>
+		ii. 写 regAction 类的 toRegPage 方法
+		    public String toLoginPage() {
+				return "loginPage";
+			}
+	> 用户登录(LoginAction_doLogin)
+		i. 检验表单
+			public void volidate() {
+				// 验证登陆信息
+				// 失败: 错误信息显示index.jsp
+				// 成功: user --> session
+			}
+			public void doLogin() {
+				// model
+				return SUCCESS;
+			}
+		ii. <action name="LoginAction_*" class="loginAction" method="{1}">
+				<result name="input">/index.jsp</result>
+				<result name="success">/index.jsp</result>
+			</action>
+
+3. 查看我的调查列表
+	i. navigator --> 我的调查(SurveyAction --> mySurveyList.jsp)
+	ii. SurveyAction.mySurveys()
+		public String mySurveys() {
+			// 1. user
+			// 2. findMySurveys(user)
+				this.mySurveys = surveyService.findMyServices(user);
+				public List<Survey> findMySurveys(User user) {
+					String hql = "from survey s where s.uer_id = ?";
+					return surveyDao.findEntityByHQL(hql, user.getId());
+				}
+			// 3. return ""
+		}
+	iii. struts.xml
+	iv. mySurveyList.jsp
+		<s:iterator value="mySurveys" var="s">
+			<s:property value="#s.id" />
+			<s:property value="#s.title" />
+			<s:property value="#s.createTime" format="yyyy-MM-dd hh:mm" />
+			....
+		</s:iterator>
+
+4. 新建调查
+	i. navigator -> new survey
+	ii. SurveyAction.newSurvey() 
+		public String newSurvey() {
+			1. session --> user
+			2. this.model = surveyService.newSurvey(user);
+				public Survey newSurvey(User user) {
+					Survey s = new Survey();
+					Page p = new Page();
+					// 设置关联关系
+					s.setUser(user);
+					p.setSurvey(s);
+					s.getPages().add(p);
+					surveyDao.saveEntity(s);
+					pageDao.saveEntity(p);
+					return s;
+				}
+			3. return "designServeyPage";
+		}
+	iii. <result name="designSurveyPage">/designSurvey.jsp</result>
+	iv. /designSurvey.jsp 略
+
+5. 登陆拦截器（用户没登陆的话点击新建，我的调查等链接会报空指针异常，所以要用登陆拦截器）
+	注册登录拦截器
+	<interceptors>
+		<!-- 注册登录拦截器 -->
+		<interceptor name="loginInterceptor" class="me.zhli.web.surveypark.struts2.interceptor.LoginInterceptor" />
+		<!-- 定义拦截器栈 -->
+		<interceptor-stack name="surveyParkStack">
+			<interceptor-ref name="loginInterceptor" />
+			<interceptor-ref name="defaultStack" />
+		</interceptor-stack>
+	</interceptors>
+	
+	<!-- 是自定义的拦截器栈设为默认栈（给每个action 都加一个栈太繁琐） -->
+	<default-interceptor-ref name="surveyParkStack" />
+	
+	<!-- 配置全局 result（给每个加一个相同的 result 太麻烦） -->
+	<global-results>
+		<result name="login">/index.jsp</result>
+	</global-results>
+
+6. 由于每一个 action 类都有 获取用户 User user = (User) sessionMap.get("user");
+      都通过实现 sessionAware 接口，代码冗余了
+		@Override
+		public void setSession(Map<String, Object> arg0) {
+			this.sessionMap = arg0;
+		}
+	可以使用 UserAware 接口在登陆拦截器中统一将 User 对象注入个 action
+
+7. 设计调查页面
+	<!-- 调查标题 -->
+	<s:property value="tittle" />
+	<!-- 输出页面集合 -->
+	<s:iterator value="pages" var="p" />
+		<!-- 输出页面标题 -->
+		<s:property value="#p.tittle" />
+		<!-- 迭代问题集合 -->
+		<s:iterator value="#p.questions" var="q" />
+			<!-- 问题的题干 -->
+			<s:property value="#q.tittle" />
+			<!-- 处理选项的输出 -->
+			<s:set var="qt" value="#q.questionType" />
+			
+			<1-- 题型为0,1,2,3(常规题) -->
+			<s:if test="#qt < 4"></s:if>
+				<s:iterator value="#q.optionArr">
+					<input type="<s:property value="#qt < 2 ? 'radio' : 'checkbox'"></s:property>" />
+					<!-- 是否带换行 -->
+					<s:if test="#qt ==1 || #qt ==3"><br/></s:if>
+					<!-- 是否带 other -->
+					<s:if test="other">
+						<input type="<s:property value="#qt < 2 ? 'radio' : 'checkbox'"></s:property>" />其他
+						<!-- 其他的样式 -->
+						<s:if test="q.otherStyle == 1">
+							<input type="text">
+						</s:if>
+						<s:elseif test="q.otherStyle == 2">
+							<!-- 下拉列表 -->
+							<select>
+								<s:iterator value="#q.otherSelectOptions">
+									<option><s:property /></option>
+								</s:iterator>
+							</select>
+						</s:elseif>
+					</s:if>
+				</s:iterator>
+			
+			<1-- 题型为4,5() -->
+			<s:elseif test="#qt == 4 || #qt == 5">
+				<!-- 下拉列表 -->
+				<s:if test="#qt == 4">
+					s:iterator value="#q.options">
+						<option><s:property /></option>
+					</s:iterator>
+				</s:if>
+				<!-- 文本框 -->
+				<s:elseif test="#qt == 5">
+					<input type="text">
+				</s:elseif>
+			</s:elseif>
+			
+			<1-- 题型为6,7，8(矩阵式问题) -->
+			<s:elseif test="#qt > 5">
+				<table>
+					<!-- 表头 -->
+					<tr>
+						<td></td>
+						<s:iterator value="#q.matrixColTitleArr">
+							<td><s:property /></td>
+						</s:iterator>
+					</tr>
+					<!-- 输出 n 多行 -->
+					<tr>
+						<s:iterator value="#q.matrixRowTitleArr">
+							<td><s:property /></td>
+							<s:iterator value="#q.matrixColTitleArr">
+								<td>
+									<s:if test="#qt == 6">
+										<input type="radion">
+									</s:if>
+									<s:if test="#qt == 7">
+										<input type="checkbox">
+									</s:if>
+									<s:if test="#qt == 8">
+										<select>
+											<s:iterator value="#q.matrixSelectionOptions">
+												<option><s:property /></option>
+											</s:iterator>
+										</select>
+									</s:if>
+								</td>
+							</s:iterator>
+						</s:iterator>
+					</tr>
+					
+					<tr><td></td></tr>
+				</table>
+			</s:elseif>
+		</s:iterator>
+	</s:iterator>
+
+8. 设计调查
+	i. 调查列表 --> 设计
+	ii. SurveyAction.designSurvey() 
+		pulblic String designSurvey() {
+			1. 接收 sid
+			2. this.model = surveyService.getSurvey(sid);
+			3. return "designSurveyPage"
+		}
+	iii. struts.xml
+	iv. /designSurvey.jsp
+
+解决点击我的调查之后点设计出现的 title 是 ’未命名‘
+
+9. struts2 的 action 中为 model 赋值的方式：
+	i. 手动压栈
+		valueStack.push(newModel);
+		1. struts 是低耦合，压栈的话用到了 struts2 的 api，耦合程度变高
+		2. 不建议直接操作 valueStack（万不得已才是用 vs）
+		3. 栈中的模型对象过多
+	ii. 属性复制（把新模型的一个个属性赋值给旧模型 —— 可以用 apache 的 beanUtils 操作）
+		oldModel.setXxx(newModel.getXxx())
+		性能低
+	iii. 使用 paramsPrepareParamsStack + prepare 拦截器配合使用
+		prepare 拦截器先执行，先为model 赋值，后调用 modelDriven 拦截器，在栈顶压入的 model 是新模型
+		但是需要注意在 prepare 拦截器之前还要进行传参，所以要换成 paramsPrepareParamsStack，而不是使用 defaultStack
+		解决懒加载异常：
+			1. 不用懒加载异常（不可取）
+			2. 一劳永逸：使用 Spring 的 openSessionInViewFilter在渲染页面时一直开启session，一直连接数据库，代价高
+				性能不好
+			3. 强行在 service 层面时初始化代理对象。
+	iv.使用刷新机制赋值
+
+10. 编辑调查
+	i. 设计调查 --> 编辑调查
+	ii. SurveyAction.editSurvey() {
+			// sid
+			// this.model = surveyService.getSruvey(sid);
+			// return "editSurveyPage"
+		}
+	iii. struts.xml
+		<resutlt name="editSurveyPage">/editSurvey.jsp</result>
+	iv. 跳转到 editSurvey.jsp
+
+11. 更新调查
+	i. 编辑调查 --> 更新调查
+	ii. SurveyAction.updateSurvey()
+		public String updateSurvey() {
+			// model  
+			this.sid = model.getId();
+			surveyService.updateSurvey(model);
+				public void updateSurvey(Survey s) {
+					surveyDao.updateEntity(s);
+				}
+			// redirect to action
+			return "designSurveyAction";
+		}
+	iii. struts.xml
+		<result name="designSurveyAction" type="redirectAction">
+			<param name="namespace">/</param>
+			<param name="actionName">SurveyAction_designSurvey</param>
+			<param name="sid">${sid}</param>
+		</result>
+	iv.  重定向到 /designSurvey.jsp
+
+11. 添加页面
+	i. 设计页面 --> 添加页面
+	ii. PageAction.toAddPage()
+		public String toAddPage() {
+			// sid
+			return "addPagePage";
+		}
+	iii. struts.xml
+		<action name="PageAction_*" class="pageAction" method="{1}">
+    		<result name="addPagePage">/editPage.jsp</result>
+    	</action>
+	iv. 跳转到 /addPage.jsp
+
+12. 保存/更新页面
+	编辑页面 -- > 提交
+	i. PageAction.saveOrUpdatePage()
+	ii. public String saveOrUpdatePage() {
+			// model + sid
+			// 维护关联关系
+			model.setSurvey(new Survey(sid));
+			surveyService.saveOrUpdate(model);
+				public void saveOrUpdate(Page p) {
+					pageDao.saveOrUpdateEntity(p);
+				}
+			return "designSurveyAction";
+		}
+	iii. struts.xml
+		改造 designSurveyAction 成全局结果
+	iv. 设置 page 集合按照 id 排序
+		[Survey.hbm.xml]
+		<set name="pages" inverse="true" order-by="id">
+
+13. 编辑页面
+	1. 设计页面 --> 编辑页面
+	2. PageAction.editPage() 
+		public String editPage() {
+			// sid + pid
+			this.model = surveyService.getPage(pid);
+				public Page getPage(Integer pid) {
+					return pageDao.getEntity(pid);
+				}
+			return "editPagePage";
+		}
+	3. struts.xml
+	4. 跳转到 /editPage.jsp
+
+14. 增加问题
+	1. 设计页面 --> 增加问题
+	2. QuestionAction_toSelectQuestionType() 方法
+		public String toSelectQuestionType() {
+			// sid + pid
+			return "selectQuestionTypePage"
+		}
+	3. struts.xml
+	4. 跳转到 /selectQuestionType.jsp
+
+15. 到达设计问题页面
+	i. 选题型 --> 提交
+	ii. Question.toDesignQuestionPage(); 
+		public String toDesignQuestionPage() {
+			// sid + cid + model
+			return "" + model.getQuestionType();
+		}
+	iii. struts.xml
+		<result name="0">/WEB-INF/questionDesign/nonMatrixWithOtherQuestionDesign.jsp</result>
+		<result name="1">/WEB-INF/questionDesign/nonMatrixWithOtherQuestionDesign.jsp</result>
+		<result name="2">/WEB-INF/questionDesign/nonMatrixWithOtherQuestionDesign.jsp</result>
+		<result name="3">/WEB-INF/questionDesign/nonMatrixWithOtherQuestionDesign.jsp</result>
+		
+		<result name="4">/WEB-INF/questionDesign/nonMatrixSelectQuestionDesign.jsp</result>
+		<result name="5">/WEB-INF/questionDesign/nonMatrixTextQuestionDesign.jsp</result>
+		
+		<result name="6">/WEB-INF/questionDesign/matrixNormalQuestionDesign.jsp</result>
+		<result name="7">/WEB-INF/questionDesign/matrixNormalQuestionDesign.jsp</result>
+		<result name="8">/WEB-INF/questionDesign/matrixSelectQuestionDesign.jsp</result>
+	iv. 跳转到对应的页面
+
+16. 保存/更新问题
+	i. 问题设计页面 --> 提交
+	ii. QuestionAction.saveOrUpdateQuestion() 
+		public String saveOrUpdateQuestion() {
+			// sid + pid + model
+			// 维护关联关系
+			model.setPage(new Page(pid));
+			surveyService.saveOrUpdateQuestion(model);
+				public void saveOrUpdateQuestion(Question q) {
+					questionDao.saveOrUpdateEntity(q);
+				}
+			return "designSurveyAction";
+		}
+	iii. 略
+	iv. 略
+
+17. Answer 实体的分析
+	class Answer{
+	}
+
+18. 删除问题
+	i. 设计调查 --> 删除问题
+	ii. QuestionAction.deleteQuestion()
+		public String deleteQuestion() {
+			// sid + qid
+			surveyService.deleteQuestion(qid);
+				public void deleteQuestion(Integer qid) {
+					// 1. 先删除 answer
+					String hql = "delete from Answer a where a.questionId = ?";
+					answerDao.batchEntityByHQL(hql, qid);
+					// 2. 删除 question
+					hql = "delete from Question q where q.id = ?";
+					quesstionDao.batchEntityByHQL(hql, qid);
+				}
+			return "designSurveyAction";
+		}
+	iii. 略
+	iv. 略
+
+19. 删除页面
+	i. 设计调查 --> 删除页面
+	ii. PageAction.deletePage()
+		public String deletePage() {
+			// sid + pid
+			surveyService.deletePage(pid);
+				public void deletePage(Integer pid) {
+					// 1. delete answer
+					String hql = "delete from Answer a where a.questionId in (select q.id from Question q where q.page.id = ?)";
+					answerDao.batchEntityByHQL(hql, pid);
+					// 2. delete question
+					hql = "delete from Question q where q.page.id = ?";
+					questionDao.batchEntityByHQL(hql, pid);
+					// 3. delete page
+					hql = "delete from Page p where p.id = ?";
+					pageDao.batchEntityByHQL(hql, pid);
+				}
+			return "designSurveyAction";
+		}
+	iii. 略
+	iv. 略
+
+20. 删除调查
+	i. 调查列表 --> 删除
+	ii. SurveyAction.deleteSurvey()
+		public String deleteSurvey() {
+			// sid
+			surveyService.deleteSurvey(sid);
+				public void deletePage(Integer sid) {
+					// 1. delete answer
+					String hql = "delete from Answer a where a.surveyId = ?";
+					answerDao.batchEntityByHQL(hql, sid);
+					// 2. delete question
+					// hibernate 在写操作中，不允许两级以上以上的链接
+					// hql = "delete from Question q where q.page.survey.id = ?"; 	// X
+					hql = "delete from Question q where q.page.id in (select p.id from Page p where p.survey.id = ?)";
+					questionDao.batchEntityByHQL(hql, sid);
+					// 3. delete page
+					hql = "delete from Page p where p.survey.id = ?";
+					pageDao.batchEntityByHQL(hql, sid);
+					// 4. delete survey
+					hql = "delete from Survey s where s.id = ?";
+					pageDao.batchEntityByHQL(hql, sid);
+				}
+			return "findMySurveysAction";
+		}
+	iii. 略
+	iv. 略
+
+21. 编辑问题
+	i. 设计调查 --> 编辑问题
+	ii. QuestionAction.editQuestion()
+		public String editQuestion() {
+			// sid + qid 
+			this.model = surveyService.getQuestion(qid);
+			return "" + model.getQuestionType();
+		}
+	iii. 略
+	iv. 略
+
+22. 清除调查
+	i. 调查列表 --> 清除调查
+	ii. SurveyAction.clearAnswers() 
+		public String clearAnswers() {
+			// sid
+			surveyService.clearAnswer(sid);
+				public void clearAnswer(Integer sid) {
+					String hql = "delete from Answer a where a.surveyId = ?";
+					answerDao.batchEntityByHQL(hql, sid);
+				}
+			return "findMySurveysAction";
+		}
+	iii. 略
+	iv. 略
+
+23. 打开关闭调查
+	准备：
+		class Survey{
+	  		private boolean closed = false;	// 是否关闭，默认打开
+	  	}
+	  	修改映射文件
+	  	<!-- update="false" 阻止的是 session的 update 或 saveOrUpdate 方法的更新，不阻止直接用 hql 语句更新 -->
+        <property name="closed" column="CLOSED" type="java.lang.Boolean" update="false"></property>
+	i. 调查列表 --> 打开/关闭
+	ii. SurveyAction.toggleStatus() 
+		public String toggleStatus() {
+			// sid
+			surveyService.toggleStatus(sid);
+				public void toggleStatus(Integer sid) {
+					// hql 不支持取反操作
+					// String hql = "update Survey s set s.closed = !s.closed where s.id = ?";		// X
+					Survey s = this.getSurvey(sid);
+					String hql = "update Survey s set s.closed = ? where s.id = ?";
+					answerDao.batchEntityByHQL(hql, !s.isClosed(), sid);
+				}
+			return "findMySurveysAction";
+		}
+	iii. 略
+	iv. 略
+
+24. 增加 logo
+	i. 增加属性
+		class Survey{
+			private String logoPhotoPath;
+		}
+		<property name="logoPhotoPath" column="LOGOPHOTOPAHT" type="java.lang.String" length="200" />
+		文件夹：/webcontent/upload/
+	ii. 设计调查 --> 增加 logo
+	iii. SurveyAction.toAddLogoPage() 
+		public String toAddLogoPage() {
+			// sid
+			return "addLogoPage";
+		}
+	iv. struts.xml
+	v. 跳转到 /addLogo.jsp
+
+25. 实现logo 上传
+	i. 选择logo 页面 --> 提交
+	ii. SurveyAction.doAddLogo()
+		public String doAddLogo() {
+			// sid + 文件
+			// 实现文件的另存为 /upload/文件夹下
+			// 更新数据库路径信息
+			return "designSurveyAction";
+		}
+	iii. 略
+	iv. 略
+
+26. 对上传文件加以约束
+	<interceptors>
+		<!-- 注册登录拦截器 -->
+		<interceptor name="loginInterceptor" class="me.zhli.web.surveypark.struts2.interceptor.LoginInterceptor" />
+		<!-- 定义拦截器栈 -->
+		<interceptor-stack name="surveyParkStack">
+			<interceptor-ref name="loginInterceptor" />
+			<!-- <interceptor-ref name="paramsPrepareParamsStack" /> -->
+			<interceptor-ref name="defaultStack">
+				<param name="modelDriven.refreshModelBeforeResult">true</param>
+				<!-- 限制文件上传 -->
+				<!-- 文件最大 2M -->
+				<param name="fileUpload.maximumSize">2000000</param>
+				<!-- 文件类型只能为图片格式 -->
+				<param name="fileUpload.allowedExtensionsSet">.jpg,.jpeg,.png,.bmp,.gif</param>
+				<!-- 文件内容类型 -->
+				<param name="fileUpload.allowedTypesSet">image/jpg,image/jpeg,image/png,image/bmp,image/gif</param>
+			</interceptor-ref>
+		</interceptor-stack>
+	</interceptors>
+
+	针对错误消息的国际化处理
+		创建 SurveyAction.properties
+		[struts-core-x.x.x.jar/org.apache.struts2/struts-messages.properties]
+		struts.messages.error.file.too.large=The file is to large to be uploaded: {0} "{1}" "{2}" {3}
+		struts.messages.error.content.type.not.allowed=Content-Type not allowed: {0} "{1}" "{2}" {3}
+		struts.messages.error.file.extension.not.allowed=File extension not allowed: {0} "{1}" "{2}" {3}
+	创建一个SurveyAction_zh_CN.properties
+		struts.messages.error.file.too.large=\u6587\u4ef6\u8fc7\u5927: {0} "{1}" "{2}" {3}
+		struts.messages.error.content.type.not.allowed=\u6587\u4ef6\u7c7b\u578b\u4e0d\u5bf9: {0} "{1}" "{2}" {3}
+		struts.messages.error.file.extension.not.allowed=\u6587\u4ef6\u6269\u5c55\u540d\u4e0d\u7b26: {0} "{1}" "{2}" {3}
+	刷新项目
+
+27. 配置动态错误页
+	[SurveyAction]
+		public void doAddLogo() {
+			inputPage = "/addLogo.jsp";
+			...
+		}
+		public void updateSurvey() {
+			inputPage = "/editSurvey.jsp";
+			...
+		}
+	[struts.xml]
+		<result name="input">${inputPage}</result>
+		
+		错误：上传出错的话会直接调到首页
+			因为：上传拦截器先于 action 的执行，还没来得及给 inputPage 赋值，所以为 null
+			解决方法：用 prepare 拦截器提前赋值
+			public void prepareUpdateSurvey() {
+				inputPage = "/editSurvey.jsp";
+			}
+			public void prepareDoAddLogo() {
+				inputPage = "/addLogo.jsp";
+			}
+
+28. 移动（深度）复制页
+	i. 增加属性
+		class Page{
+			private float orderno;
+			// getter setter
+			
+			public void setId(Integer id) {
+			this.id = id;
+			if(id != null) {
+					this.orderno = id;
+				}
+			}
+		}
+		page.hbm.xml
+		<property name="orderno" type="float">
+			<column name="orderno" sql-type="decimal(10,5)" />
+		</property>
+		
+		Survey.hbm.xml
+		<set name="pages" inverse="true" order-by="id">
+	ii. 设计调查页面 --> 移动/复制页面
+		MoveOrCopyPageAction.toSelectTargetPage()
+		public String toSelectTargetPage() {
+			// 原页面 id（srcId）
+			mySurveys = surveyService.getSurveyWithPages(user);
+				public List<Survey> getSurveyWithPages(User user) {
+					String hql = "from Survey s where s.user.id = ?";
+					List<Survey> list = surveyDao.findEntityByHQL(hql, user.getId());
+					for(Survey s : list) {
+						s.getPages().size();
+					}
+					return list;
+				}
+			return "moveOrCopyPageListPage"
+		}
+	iii. struts.xml
+		
+	iv. 跳转到 /moveOrCopyPageList.jsp
+
+29. 完成移动/复制操作
+	i. 移动/复制 Page 的列表页面 --> 提交
+	ii. MoveOrCopyPageAction.doMoveOrCopyPage() 方法
+		public String doMoveOrCopyPage() {
+			// srcPid + targPid + pos + sid
+			surveyService.moveOrCopyPage(srcPid, targPid, pos);
+					public void moveOrCopyPage() {
+						// copy or move
+						// srcPid --> srcPage --> srcSurvey
+						// targPid --> targPage --> targSurvey
+						// move
+						if(srcSurvey.id == targSurvey.id) {
+							// 设置页序
+							setOrderno(srcPage, targPid, pos)
+						} else {
+							// copy
+							// 设置页序
+							Page newPage = ...
+							setOrderno(newPage, targPid, pos);
+						}
+					}
+					
+					// 设置页序
+					public void setOrderno(Page srcPage, Page targPage, int pos) {
+						// 判断位置 0-之前 1-之后
+						if(pos == 0) {
+							if(isFirstPage(targPage)) {
+								srcPage.setOrderno(targPage.getOrderno() - 0.01f);
+							} else {
+								// 取得目标页的前页
+								Page p = getPrePage(targPage);
+								srcPage.setOrderno((targetPage.getOrder() + prePage.getOrderno()) / 2)
+							}
+						} else {
+							if(isLastPage(targPage)) {
+								srcPage.setOrderno(targPage.getOrderno() + 0.01f);
+							} else {
+								// 取得目标页的前页
+								Page p = getNextPage(targPage);
+								srcPage.setOrderno((targetPage.getOrder() + nextPage.getOrderno()) / 2)
+							}
+						}
+					}
+				return "designSurveyAction";
+			}
+		}
+	iii.
+	iv.
+
+30. 参与调查
+	i. 导航栏 --> 参与调查
+	ii. EngageSurveyAction.findAllAvailableSurveys()
+		public String findAllAvailableSurveys() {
+			this.surveys = surveyService.findAllAvailableSurveys();
+				public List<Survey> findAllAvailableSurveys() {
+					String hql = "from Survey s where s.closed = ?";
+					return surveyDao.findEntityByHQL(hql, false);
+				}
+			return "engageSurveyListPage"
+		}
+	iii. struts.xml
+	iv. 跳转到 /engageSurveyList.jsp
+	v. 获取图片地址
+		public String getImageUrl(String path) {
+			if(ValidateUtil.isValidate(path)) {
+				String absPath = sc.getRealPath(path);
+				File file = new File(absPath);
+				if(file.exists()) {
+					// SuveyPark/upload/xxx.jpg
+					return sc.getContextPath() + path;
+				}
+			}
+			// 返回默认图片
+			return sc.getContextPath() + "/question.jpg";
+		}
+
+31. 点击调查进行参与
+	i. 参与调查视图页面 --> 点击调查
+	ii. EngageSurveyAction.entry() 方法
+		public String entry() {
+			// sid
+			// 查询调查首页
+			this.curPage = this.getFirstPage(sid);
+				public Page getFirstPage(Integer sid) {
+					String hql = "from Page p where p.survey.id = ? order by p.orderno asc";
+					List<Page> list = pageDao.findEntityByHQL(hql, sid);
+					Page p = list.get(0);
+					p.getQuestions().size();
+					return p;
+ 				}
+ 			// 查询当前调查存放到 session 中，以免每次取调查标题
+ 			session.put("current_survey", currPage.getSourvey());
+			return "engageSurveyPage";
+		}
+	iii. struts.xml
+	iv. 跳转到 /engageSurvey.jsp
+		类似于 designSurvey.jsp
+	v. 最大页序和最小页序的处理问题
+		1. 	public class Survey...{
+				private float minOrderno;
+				private float maxOrderno;
+				// geter setter
+			}
+			Survey.hbm.xml
+			<property name="minOrderno" formula="(select min(p.orderno) from pages p where p.surveyid = id)" />
+			<property name="maxOrderno" formula="(select max(p.orderno) from pages p where p.surveyid = id)" />
+
+32. 处理参与调查
+	i. 参与调查页面 --> 上一步，下一步，完成，推出
+	ii. EngageSurveyAction.doEngageSurvey()
+		public String doEngageSurvey() {
+			String submitName = getSubmitName;
+			if(// is pre) {
+				mergeParamsIntoSession();							
+				this.currPage = surveyService.getPrePage(currPid);
+				return "engageSurveyPage";
+			}
+			else if(// is next) {
+				mergeParamsIntoSession();							
+				this.currPage = surveyService.getPrePage(currPid);
+				return "engageSurveyPage";
+			}
+			else if(// is ok) {
+				mergeParamsIntoSession();							
+				// 答案入库
+				clearSessionData();
+				return "engageSurveyAction";
+			}
+			else if(// is exit) {
+				clearSessionData();
+				return "engageSurveyAction";
+			}
+			...
+		}
+		在完成调查之前不要直接入库，先放到session中，最后一次性入库
+		public String entry(){
+			// ...
+			// 将调查的存放所有参数的map存放到 session 中 ，用于保存答案和回显
+			session.put();
+		}
+
+33. 结果统计	
+	// 问题统计模型
+	class QuestionStatisticsModel {
+		private Question question;
+		private int count;
+		private List<OptionStatisticsModel> osm = ...
+	}
+	// 选项统计模型
+	class OptionStatisticsModel {
+		private int optionIndex;
+		private String optionLabel;
+		private int count;
+		
+		private int matrixRowIndx;
+		private String matrixRowLabel;
+	}
+	
+	// 统计回答问题的总人数
+	
+	// 统计每个选项的情况
+	
+34. 分析调查
+	i. 我的调查 --> 分析
+	ii. SurveyAction.analyzeSurvey() 
+		public String analyzeSurvey() {
+			// sid
+			this.model = surveyService.getSurveyWithChildren(sid);
+			return "analyzeSurveyListPage";
+		}
+	iii. struts.xml
+	iv. 跳转到 /analyzeSurveyList.jsp
+
+35. JFreeChart 整合到项目中
+	i. 导入jar 包
+		jcommon-1.0.23.jar
+		jfreechart-1.0.19.jar
+	ii. 分析列表页面 -- > 查看（提交）
+		ChartOutputAction.execute()
+		public String execute() {
+			return success;
+		}
+		public　InputStream getIs() {
+			// 使用 就freechart 生成图表，并放在 inputstream 中
+		}
+	iii. sturts.xml
+		 <result name="success" type="stream">
+		   <param name="contentType">image/jpeg</param>
+		   <param name="inputName">is</param>
+		   <!-- <param name="contentDisposition">attachment;filename="document.pdf"</param> -->
+		   <param name="bufferSize">1024</param>
+		 </result>
+	iv. 直接输出图片给浏览器	
+	注意：
+		数据流的流向：chart --> (ByteArrayOutputStream)baos --> bais --> ServletOutputStream
+		太过麻烦了，还占内存，消耗资源。
+		用 struts2 给出的 插件整合 jfreechart（直接从 chart --> ServletOutputStream）
+		
+36. 使用 struts2-jfreechart-plugin-2.3.16.3.jar 插件来调优
+	i. 倒入 struts2-jfreechart-plugin-2.3.16.3.jar 包
+	ii. 改造 action
+		class ChartOutputAction() {
+			// ...
+			JFreeChart getChart() {
+				// ...
+				return chart;
+			}
+		}
+	iii. sturts.xml
+		<package name="default" namespace="/" extends="struts-default,jfreechart-default">
+		<action name="ChartOutputAction" class="chartOutputAction">
+	    	<result name="success" type="chart">
+				<param name="height">300</param>
+	    		<param name="width">400</param>
+			</result>
+    	</action>
+	
+37. 矩阵式问题统计
+	i. 分析列表页面 --> 提交
+	ii.  MatrixStaticsAction.execute()
+		public String execute() {
+			// sid
+			this.model = ss.statistics(qid);
+			return "" + qsm.getQuestionType();
+		}
+	iii. struts.xml
+	iv. 跳转到
+
+38. poi: xls word ppt
+	i. 下载 jar 包
+		poi-3.11-beta3-20141111.jar
+		commons-codec-1.9.jar
+		commons-logging-1.1.3.jar
+		log4j-1.2.17.jar
+	ii. 
+		excel 文件：xls 		--> 	sheet --> 	row --> 	ceil
+		封装的类：	HSSFWorkbook --> HSSFSheet --> HSSFRow --> HSSFCell
+		向单元格写东西 cell.setCellValue(boolean | Calendar | Date | String | Double | Richtext)
+
+39. 集成 poi 输出 xls
+	i. 引入类库（后两个项目中已有，不用重复引用）
+		poi-3.11-beta3-20141111.jar
+		commons-codec-1.9.jar
+		commons-logging-1.1.3.jar
+		log4j-1.2.17.jar
+	ii. 调查列表 --> 收集调查
+	iii. CollectionSurveyAction.execute()
+		public String execcute() {
+			// sid
+			return SUCCESS;
+		}
+		public InputStream getIs() {
+			// poi --> inputstream
+		}
+
+40. 权限管理
+	i. 导航栏 --> 权限管理
+	ii. RightAction.findAllRights()
+		public String findALlRights() {
+			this.rights = rightService.findALlEntities();
+			return "rightListPage";
+		}
+	iii. struts.xml
+		<action name="RightAction_*" class="rightAction" method="{1}">
+    		<result name="rightListPage">/rightList.jsp</result>
+    	</action>
+	iv. 跳转
+
+41. 添加权限
+	i. 权限列表 --> 添加权限
+	ii. RightAction.toAddRightPage()
+		public String toAddRightPage() {
+			return "editRightPage";
+		}
+	iii. struts.xml
+		<result name="addRightPage">/addRight.jsp</result>
+	iv. 跳转
+	
+	保存更新添加权限页面 --> 提交
+	RightAction.saveOrUpdateRight() {
+		public String saveOrUpdateRight() {
+			// model
+			// 插入 -- 处理权限位和权限码
+			rightService.sageOrUpdateRight(model);
+				public void sageOrUpdateRight(Right r) {
+					if(model.getId() == model) {
+						int pos = 0;
+						long code = 1L;
+						String hql = "from Right r order by r.rightPos desc, rightCode desc";
+						List<Right> rights = this.findEntityByHQL(hql);
+						if(!ValidateUtil.isValid(rights)) {
+							pos = 0;
+							code = 1L;
+						} else {
+							// 得到最上面的权限位和权限码
+							Right top = rights.get(0);
+							int topPost = top.getRightPos();
+							long topCode = top.getRightCode();
+							// 判断权限码是否达到最大值(最大应该是 62（最高位为符号位），这里指定为 60)
+							if(topCode >= (1L << 60)) {
+								pos = topPos + 1;
+								code = 1;
+							} else {
+								pos = topPos;
+								code = topCode << 1;
+							}
+						}
+						model.setRightPos(pos);
+						model.setRightCode(code);
+					}
+					this.saveOrUpdateEntity(model);
+				}
+			return "findAllRightAction";
+		}
+	}
+42. 编辑权限
+	i. 权限列表 --> 编辑
+	ii. RightAction.editRight();
+		public String editRight() {
+			// rightId
+			this.model = rightService.getEntity(rightId);
+			return "editRightPage";
+		}
+	iii. struts.xml
+	iv. 跳转
+43. 删除权限
+	i. 权限列表 --> 删除
+	ii. RightAction.deleteRight();
+		public String deleteRight() {
+			// rightId		
+			Right r = new Right();
+			r.setId(rightId);
+			rightService.deleteEntity(r);
+			return "findAllRightsAction";
+		}
+
+44. 反射实现权限捕获 ExtractAllRightsUtil.java
+	缺点：命名要规范 -- XxxAction_methodName() 或者 XxxAction.execute()
+		   若要想一次性弄的话，必须项目完成之后，不方便
+45. sturts2 拦截器实现权限捕获
+	public String intercept(ActionInvocation invocation) throws Exception {
+		ActionProxy proxy = invocation.getProxy();
+		String namespace = proxy.getNamespace();
+		String actionName = proxy.getActionName();
+		if(ValidateUtil.isValidate(namespace) || namespace.equals("/")) {
+			namespace = "";
+		}
+		String url = namespace + "/" + actionName;
+		
+		// 取得在 application 中的 Spring 容器
+		// 方法 1
+		//ApplicationContext ac = (ApplicationContext) invocation.getInvocationContext().getApplication().get(WebApplicationContext.ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE);
+		
+		// 方法 2
+		ServletContext sc = ServletActionContext.getServletContext();
+		ApplicationContext ac = WebApplicationContextUtils.getWebApplicationContext(sc);
+		
+		RightService rs = (RightService) ac.getBean("rightService");
+		
+		rs.appendRightByUrl(url);
+		return invocation.invoke();
+	}
+	
+	<interceptors>
+		<!-- 注册登录拦截器 -->
+		<interceptor name="loginInterceptor" class="me.zhli.web.surveypark.struts2.interceptor.LoginInterceptor" />
+		<!-- 捕获 Url 拦截器 -->
+		<interceptor name="catchUrlInterceptor" class="me.zhli.web.surveypark.struts2.interceptor.CatchUrlInterceptor" />
+		<!-- 定义拦截器栈 -->
+		<interceptor-stack name="surveyParkStack">
+			<interceptor-ref name="catchUrlInterceptor"></interceptor-ref>
+			<interceptor-ref name="loginInterceptor"></interceptor-ref>
+			<!-- <interceptor-ref name="paramsPrepareParamsStack" /> -->
+			<interceptor-ref name="defaultStack">
+				<param name="modelDriven.refreshModelBeforeResult">true</param>
+				<!-- 限制文件上传 -->
+				<!-- 文件最大 2M -->
+				<param name="fileUpload.maximumSize">100000</param>
+				<!-- 文件类型只能为图片格式 -->
+				<param name="fileUpload.allowedExtensions">.jpg,.jpeg,.png,.bmp,.gif</param>
+				<!-- 文件内容类型 -->
+				<param name="fileUpload.allowedTypes">image/jpg,image/jpeg,image/png,image/bmp,image/gif</param>
+			</interceptor-ref>
+		</interceptor-stack>
+46. 批量修改权限	
+	i. 权限列表 --> 提交
+	ii. RightAction.batchUpdateRights()
+		public String batchUpdateRights() {
+			// alllRights
+			rightService.batchUpdateRights(allRights);
+				public void batchUpdateRights(List<Rights> allRights) {
+					String hql = "update Right r set r.rightName =? where r.id = ?";
+					if(ValidateUtil.isValidate(allRights)) {
+						for(Right r : allRights) {
+							this.batchEntityByHQL(hql, r.getRightName(), r.getId());
+						}
+					}
+				}
+			return "findAllRightsAction";
+		}
+
+47. 角色管理
+	i. 角色列表 --> 角色管理
+	ii. RoleAction.findAddRoles();
+		public String findAllRoles() {
+			this.allRoles = roleService.findAllEntities();
+			return "roleListPage";
+		}
+	iii. struts.xml
+	iv.	跳转到 /editList.jsp
+	
+48. 添加角色
+	i. 角色列表 --> 添加角色
+	ii. RoleAction.toAddRolePage();
+		public String toAddRolePage() {
+			this.noOwnRights = rightService.findAllEntities();
+			return "addRolePage";
+		}
+	iii. struts.xml
+	iv.	跳转到 /editRole.jsp
+	<s:form>
+		<td align="right"><s:select id="left" list="rights" listKey="id" listValue="rightName" multiple="true" /></td>
+		<td align="left"><s:select id="right" list="noOwnRights" listKey="id" listValue="rightName" multiple="true" /><td>
+	</s:form>
+
+49. 保存/更新角色
+	i. 添加页面 --> 提交
+	ii. RoleAction.saveOrUpdateRole();
+		public String saveOrUpdateRole() {
+			// model + ownRightIds(Integer[])
+			roleService.saveOrUpdateRole(model, ownRightIds);
+				public void saveOrUpdateRole(Role model, Integer[] ids) {
+					// 没有为角色授予任何权限
+					if(!ValidateUtil.isValidate(ids)) {
+						model.getRights().clear();
+					} else {
+						List<Right> rights = rightService.findRightsInPage(ids);
+								public List<Right> findRightsInPage(Integer[] ids) {
+									if(ValidateUtil.isValidate(ids)) {
+										String hql = "from Right r where r.id in (" + StringUtil.arr2Str(ids) + ")";
+										return findEntityByHQL(hql);
+									}
+									return null;
+								}
+						model.setRights(new HashSet<Right>(rights));
+					}
+					this.saveOrUpdateEntity(model);
+				}
+			return "findAllRolesAction";
+		}
+	iii. sturts.xml
+		<result name="addRolePage">/editRole.jsp</result>
+	iv. 重定向到 roleList.jsp
+
+50. 修改角色
+	i. 角色列表 --> 修改
+	ii. RoleAction.editRole()
+		public String editRole() {
+			// roleId
+			this.model = roleService.getEntity(roleId);
+			this.noOwnRight = rightService.findRightsNotInRange(model.getRights());
+				public List<Right> findRightsNotInRange(Set<Right> rights) {
+					if(!rights 有效) {
+						return this.findAllEntities();
+					} else {
+						String hql = "from Right r where r.id not in (" + extractRightIds(rights) + ")";
+						return this.findEntitiesByHQL(hql);
+					}
+				}
+			return "editRolePage";
+		}
+	iii. struts.xml
+		<result name="editRolePage">/editRole.jsp</result>
+	iv. 跳转
+	
+51. 角色删除
+	i. 角色列表 --> 删除
+	ii. RoleAction.deleteRole();
+		public String deleteRole() {
+			// roleId
+			roleService.deleteEntities(new Role(roleId));
+			return "findAllRolesAction";
+		}
+	iii. 略
+	iv. 略
+	
+52. 用户授权
+	i. 导航栏 --> 用户授权
+	ii. UserAuthorizeAction.findAllUsers()
+		public String findAllUsers() {
+		 	this.allUsers = userService.findAllEntities();
+		 	return "userAuthorizeListPage";
+		}
+	iii. struts.xml
+	iv. 体转到 /userAuthorizeList.jsp
+
+53. 修改用户权限(授予角色)
+	i. 用户授权列表 --> 修改用户授权
+	ii. UserAuthorizeAction.editAuthorize();
+		public String editAuthorize() {
+			// userId
+			this.model = userService.getEntity(userId);
+			this.noOwnRoles = roleService.findRolesNotInRange(model.getRoles());
+				// 参考角色
+			return "editAuthorizePage";
+		}
+	iii. sturts.xml
+		
+	iv. 跳转到 /editAuthorize.jsp
+	
+54. 更新用户授权
+	i. 修改用户授权页面 --> 提交
+	ii. UserAuthorizeAction.updateAuthorize();
+	 	public String updateAuthorize() {
+	 		// model + ownRoleIds
+	 		userService.updateAuthorize(model, ownRoleIds);
+	 			public void updateAuthorize(User user, Integer [] roleIds) {
+	 				// 一定要查询在db中的新用户，否则会将用户的信息改掉
+	 				User newUser = this.getEntity(user.getId);
+	 				if(!roleIds有效) {
+	 					newUser.getRoles().clear();
+	 				} else {
+	 					List<Role> roles = roleService.findRolesInRange(roleIds);
+	 					newUser.setRoles(new HashSet<User>(roles));
+	 				}
+	 			}
+	 		return "findAllUsersAction";
+	 	}
+	iii. struts.xml
+		<result name="findAllUsersAction" type="redirectAction">
+			<param name="namespace">/</param>
+			<param name="actionName">UserAuthorizeAction_findAllUsers</param>
+		</result>
+	iv. redirect
+	
+55. 清除授权
+	i. 授权列表 --> 清除授权
+	ii. UserAuthorizeAction.clearAuthorize()
+		public String clearAuthorize() {
+			// userId
+			userService.clearAuthorize(userId);
+				public void clearAuthorize(Integer userId){
+					this.getEntity(userId).getRoles().clear();
+				}
+			return "findAllUsersAction";
+		}
+	
+56. 计算用户权限总和
+	public void calculateRightSum() {
+		int pos = 0;
+		long code = 0;
+		for (Role role : roles) {
+			for (Right r : role.getRights()) {
+				pos = r.getRightPos();
+				code = r.getRightCode();
+				rightSum[pos] = rightSum[pos] | code;
+			}
+		}
+		// 释放资源
+		roles = null;
+	}
+	
+57. 权限过滤
+	i. class Right{
+			private boolean common;
+			// get/set
+		}
+		Right.hbm.xml
+		<property name="common" column="COMMON" type="java.util.boolean" update="false" />
+	ii. 改造 LoginInterceper --> RightFilterInterceptor
+		class RightFilterInterceptor{
+			...
+		}
+		
+58. 权限过滤过程
+	i. 用户点击链接 --> 拦截器中
+	ii. url -- 查询 --> Right
+	iii. 对 Right 对象进行判断
+		if(是不是公共资源) {
+			// 放行
+		} else {
+			if(登陆？) {
+				if(有权限没) {
+					// 放行
+				} else {
+					// error page
+				}
+			} else {
+				// login
+			}
+		}
+
+59. 超级管理员
+	i. Rolr(roleValue = "-1")
+	/**
+	 * 计算用户权限总和
+	 */
+	public void calculateRightSum() {
+		int pos = 0;
+		long code = 0;
+		for (Role role : roles) {
+			// 判断是否是超级管理员
+			if("-1".equals(role.getRoleValue())) {
+				this.superAdmin = true;
+				// 释放资源
+				roles = null;
+				return;
+			}
+			
+			for (Right r : role.getRights()) {
+				pos = r.getRightPos();
+				code = r.getRightCode();
+				rightSum[pos] = rightSum[pos] | code;
+			}
+		}
+		// 释放资源
+		roles = null;
+	}
+	
+60.	带有超级管理员权限过滤流程
+	权限过滤过程
+	i. 用户点击链接 --> 拦截器中
+	ii. url -- 查询 --> Right
+	iii. 对 Right 对象进行判断
+		if(是不是公共资源？) {
+			// 放行
+		} else {
+			if(登陆？) {
+				if(超级管理员) {
+					// 放行
+				} else {
+					if(有权限？) {
+						// 放行
+					} else {
+						// error page
+					}
+				}
+			} else {
+				// to login
+			}
+		}
+	
+61. 使用 spring 监听器实现容器初始化完成后，立刻将所有的权限取出并放到 application 中
+	@Component
+	@SuppressWarnings("rawtypes")
+	public class IniRightListener implements ApplicationListener, ServletContextAware {
+	
+		@Resource
+		private RightService rightService;
+		// 接收 servletContext
+		private ServletContext sc;
+		
+		@Override
+		public void onApplicationEvent(ApplicationEvent arg0) {
+			// 上下文刷新事件
+			if(arg0 instanceof ContextRefreshedEvent) {
+				// 查询
+				List<Right> rights = rightService.findAllEntities();
+				Map<String, Right> map = new HashMap<>();
+				for (Right right : rights) {
+					map.put(right.getRightUrl(), right);
+				}
+				if(sc != null) {
+					sc.setAttribute("all_rights_map", map);
+					System.out.println("初始化所有权限到 application 中。");
+				}
+			}
+		}
+	
+		/**
+		 * 注入所有 ServletContext
+		 */
+		@Override
+		public void setServletContext(ServletContext servletContext) {
+			this.sc = servletContext;
+		}
+	}
+ 	
+ 	包扫描
+ 	<context:component-scan base-package="me.zhli.web.surveypark.dao.impl,
+ 										  me.zhli.web.surveypark.service.impl,
+ 										  me.zhli.web.surveypark.struts2.action,
+ 										  me.zhli.web.surveypark.listener">
+    </context:component-scan>
+ 	
+62. 权限控制分为粗细两种粒度：
+	粗粒度：拦截器，安全的
+	细粒度：标签覆盖
+
+63. 日志
+	aop：
+		前置
+		后置
+		环绕		(*)
+		引入
+		异常
+	
+	日志管理
+		1. Log.java
+		public class Log extends BaseEntity {
+			private Integer id;
+			private String operator;	//操作人
+			private String operName;	//操作人名
+			private String operParams;	//操作参数
+			private String operResult;	//操作结果
+			private String resultMsg; 	//结果消息
+			private Date operTime = new Date();	//操作时间
+			// getter/setter
+		}
+		
+		2. Log.hbm.xml
+			<?xml version="1.0"?>
+			<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+			"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+			<hibernate-mapping>
+			    <class name="me.zhli.web.surveypark.model" table="LOGS">
+			        <id name="id" type="java.lang.String">
+			            <column name="ID" />
+			            <generator class="identity" />
+			        </id>
+			        <property name="operator" column="operator" type="java.lang.String" length="100" />
+			        <property name="operName" column="operName" type="java.lang.String" length="100" />
+			        <property name="operParams" column="operParams" type="java.lang.String" length="500" />
+			        <property name="operResult" column="operResult" type="java.lang.String" length="50" />
+			        <property name="resultMsg" column="resultMsg" type="java.lang.String" length="500" />
+			        <property name="operTime" column="operTime" type="java.util.Date" />
+			    </class>
+			</hibernate-mapping>
+		
+		3. 使用 pojos + xml 开发环绕通知 --> Logger
+		      保存格式为：Entity{attribute1:value,attribute2:value...}
+
+64. 日志管理
+	i. aop 环绕通知
+	ii. 导航栏 --> 日志管理
+	iii. LogAction.findAllLogs() 
+		public String findAllLogs() {
+			this.allLogs = logService.findAllEntities();
+			return "logListPage";
+		}
+	iv. struts.xml
+		<action name="LogAction_*" class="logAction" method="{1}">
+    		<result name="logListPage">/logList.jsp</result>
+    	</action>
+	v. 跳转 /logList.jsp
+	
+		public class StringUtil {
+			// ....
+			public static String getDescString(String str) {
+				if(str != null && str.trim().length() > 30) {
+					return str.substring(0, 30);
+				}
+				return str;
+			}
+		}
+		
+		<s:property value="@me.zhli.web.surveypark.util.StringUtil@getDescString(resultMsg)" />
+	但是 struts2 默认不允许静态方法调用，需要开启
+		<!-- 允许静态方法访问 -->
+	    <constant name="struts.ognl.allowStaticMethodAccess" value="true" />
+
+65. 大数据
+	1. 分表
+		动态表：按月分 logs_2014_12 调度
+		使用 spring 的 quartz（石英） 调度，动态生成 数据表
+	2. 分库
+	
+66. quartz 调度
+	i. 引入类库：
+		spring: spring-context-support-4.1.1.RELEASE.jar (org.springframework.scheduling.quartz.QuartzJobBean 就在这个包下，当时找了好久)
+		quartz: quartz-2.2.1.jar
+				slf4j-api-1.6.6.jar
+	ii. schedules.xml
+		<?xml version="1.0" encoding="UTF-8"?>
+		<beans xmlns="http://www.springframework.org/schema/beans"
+			xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:schemaLocation="http://www.springframework.org/schema/beans 
+								http://www.springframework.org/schema/beans/spring-beans.xsd">
+			
+			<!-- 创建日志任务bean -->
+			<!-- <bean id="createLogTablesTask" class="me.zhli.web.surveypark.scheduler.CreateLogTablesTask"></bean> -->
+			<!-- 任务明细 -->
+			<bean id="jobDetailBean" class="org.springframework.scheduling.quartz.JobDetailFactoryBean">
+				<!-- 通过任务类指定石英任务 -->
+				<property name="jobClass" value="me.zhli.web.surveypark.scheduler.CreateLogTablesTask"></property>
+				<property name="jobDataMap">
+					<map>
+						<entry key="logService" value-ref="logService"></entry>
+					</map>
+				</property>
+			</bean>
+			
+			<!-- 设置触发器, 设置石英任务的调度策略 -->
+			<bean id="cronTriggerBean" class="org.springframework.scheduling.quartz.CronTriggerFactoryBean">
+				<property name="jobDetail" ref="jobDetailBean" />
+				<property name="cronExpression">
+					<!-- cron 表达式 -->
+					<!-- 秒	分	时	天	月	星期		年(不写表示本年) -->
+					<!-- 可以用 "," 分隔，可以用 "-" 连续 "?" 不设置，用默认的 "*" 任意通配符 -->
+					<!-- 每个月 15 号 0 点 -->
+					<!-- <value>0 0 0 15 * ?</value> -->
+					<value>0 32 0 12 * ?</value>
+				</property>
+			</bean>
+			
+			<!-- 调度工厂 bean: 激活触发器的运行 -->
+			<bean id="" class="org.springframework.scheduling.quartz.SchedulerFactoryBean">
+				<property name="triggers">
+					<list>
+						<ref bean="cronTriggerBean"/>
+					</list>
+				</property>
+			</bean>
+		</beans>
+	iii. web.xml 配置，使其加载 schedules.xml 文件
+		<context-param>
+		<param-name>contextConfigLocation</param-name>
+		<param-value>classpath:applicationContext.xml,classpath:schedules.xml</param-value>
+	</context-param>
+
+67. 使用 spring监听器在启动时创建三张日志表
+	/**
+	 * 初始化日志表监听器，在 spring 容器初始化完成后立即调用
+	 */
+	@Component
+	@SuppressWarnings("rawtypes")
+	public class IniLogTableListener implements ApplicationListener {
+	
+		@Resource
+		private LogService logService;
+		
+		@Override
+		public void onApplicationEvent(ApplicationEvent arg0) {
+			// 上下文刷新事件
+			if(arg0 instanceof ContextRefreshedEvent) {
+				System.out.println("初始化日志表...");
+				String tableName = LogUtil.generateLogTableName(0);
+				logService.createLogTable(tableName);
+				
+				tableName = LogUtil.generateLogTableName(1);
+				logService.createLogTable(tableName);
+				
+				tableName = LogUtil.generateLogTableName(2);
+				logService.createLogTable(tableName);
+				System.out.println("初始化日志表完成");
+			}
+		}
+	}
+
+68. 改造 log.saveEntity()，向当前日志表中插入数据
+
+69. 分库
+	竖直分库：异构（模块独立性高，每个模块数据量大，尽量避免跨库访问）
+	水平分库：同构（尽量避免跨库访问）
+
+70. 使用分布式数据库，实现 answers 的分布存储（接近竖直）(调查id 为奇数的入 surveypark_01 库，偶数入 surveypark（主） 库)
+	i. 创建从库（surveypark_1）
+		创建 surveypark_1.answers 表(唯一一张表)
+	ii. applicationContext.xml 中配置多个数据源
+		<!-- configure data source(main) -->
+		<bean id="dataSource-main" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+			<!-- 不能有空格，例如下面注释的是错的 -->
+			<!-- <property name="user" value="${jdbc.user }"></property> -->		
+			<property name="user" value="${jdbc.user}"></property>		
+			<property name="password" value="${jdbc.password}"></property>		
+			<property name="jdbcUrl" value="${jdbc.jdbcUrlMain}"></property>		
+			<property name="driverClass" value="${jdbc.driverClass}"></property>
+			
+			<property name="maxPoolSize" value="${jdbc.c3p0.maxPoolSize}"></property>		
+			<property name="minPoolSize" value="${jdbc.c3p0.minPoolSize}"></property>		
+			<property name="initialPoolSize" value="${jdbc.c3p0.initialPoolSize}"></property>		
+			<property name="acquireIncrement" value="${jdbc.c3p0.acquireIncrement}"></property>		
+		</bean>
+		<!-- configure data source(main-1)-->
+		<bean id="dataSource-main-1" parent="dataSource-main">
+			<property name="jdbcUrl" value="${jdbc:jdbcUrlMain-1}"></property>		
+		</bean>
+	iii. 自定义数据源路由器(dataSour)
+		public class DataSourceRouter extends AbstractRoutingDataSource(){...}
+	iv. 配置数据源路由器
+		<!-- 配置数据源路由器 -->
+		<bean id="dataSourceRouter" class="me.zhli.web.surveypark.datasource.DataSourceRouter">
+			<!-- 目标数据源集 -->
+			<property name="targetDataSources">
+				<map>
+					<entry key="odd" value-ref="dataSource-main"></entry>
+					<entry key="even" value-ref="dataSource-main-1"></entry>
+				</map>
+			</property>
+			<!-- 默认数据源（主库） -->
+			<property name="defaultTargetDataSource" ref="dataSource-main"></property>
+		</bean>
+	v. 将数据源路由器注入给 localSessionFactoryBean
+		<property name="dataSource" ref="dataSourceRouter"></property>
+	vi.利用ThreadLoacl 技术实现 token 机制，目的在 action 和 Router 之间实现消息传递
+		public class SurveyToken {
+			private static ThreadLocal<SurveyToken> l = new ThreadLocal<>();
+			private Survey survey;
+			public Survey getSurvey() {
+				return survey;
+			}
+			public void setSurvey(Survey survey) {
+				this.survey = survey;
+			}
+			/**
+			 * 将指定的令牌绑定到当前线程
+			 */
+			public static void bindToken(SurveyToken token) {
+				l.set(token);
+			}
+			/**
+			 * 解除当前线程绑定的令牌
+			 */
+			public static void unBindToken(SurveyToken token) {
+				l.remove();
+			}
+			/**
+			 *  从当前线程获得绑定的令牌
+			 */
+			public static SurveyToken getCurrentToken() {
+				return l.get();
+			}
+		}
+	vii. 在保存答案时，将 token 绑定到线程中
+		EngageSurveyAction () {
+			...
+			// 绑定 token 到当前线程
+			SurveyToken token = new SurveyToken();
+			token.setSurvey(getCurrentSurvey());
+			SurveyToken.bindToken(token);	// 绑定令牌
+			...
+		}
+	viii. error: Table 'surveypark_1.logs_2014_12' doesn't exist
+
+71. 使用 spring 的缓存抽象，对 service 进行缓存，提升性能
+	i. 引入缓存供应商 --> ehcache 类库
+		ehcache-2.9.0.jar
+	ii. 配置 echache 过期策略
+		<ehcache xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../config/ehcache.xsd">
+		   <diskStore path="java.io.tempdir" />
+		    <defaultCache
+		            maxElementsInMemory="10000"
+		            eternal="false"
+		            timeToIdleSeconds="120"
+		            timeToLiveSeconds="120"
+		            maxElementsOnDisk="10000000"
+		            diskExpiryThreadIntervalSeconds="120"
+		            memoryStoreEvictionPolicy="LRU">
+		        <persistence strategy="localTempSwap"/>
+		    </defaultCache>
+		</ehcache>
+	iii. 
+	iv. 
+	
+72. spring 远程调用
+	Server -- Client
+	
+73. 对外公开调查管理系统, 让第三方可以直接调用
+	i. 引入类库 spring-webmvc-4.1.1.RELEASE.jar
+	ii. 配置 web.xml 文件的 DispatcherServlet
+		 <!-- 配置 spring 的远程调用 -->
+		<servlet>
+		<servlet-name>service</servlet-name>
+		 	<servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+		</servlet>
+		<servlet-mapping>
+		 	<servlet-name>service</servlet-name>
+		<url-pattern>*.service</url-pattern>  	
+		</servlet-mapping>
+	iii. 创建config/spring-remote.xml
+		<?xml version="1.0" encoding="UTF-8"?>
+		<beans xmlns="http://www.springframework.org/schema/beans"
+			xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+			xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+		
+			<bean name="/ss.service" class="org.springframework.remoting.httpinvoker.HttpInvokerServiceExporter">
+				<property name="serviceInterface">
+					<value>me.zhli.web.surveypark.service.StatisticsService</value>
+				</property>
+				<property name="service" ref="statisticsService"></property>
+			</bean>
+		</beans>
+	iv. 
+	v. 
+	

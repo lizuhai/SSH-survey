@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:cache="http://www.springframework.org/schema/cache"
+	xsi:schemaLocation="http://www.springframework.org/schema/cache http://www.springframework.org/schema/cache/spring-cache-4.1.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.1.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.1.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.1.xsd">
+
+	<!-- 分散配置 -->
+	<context:property-placeholder location="classpath:jdbc.properties"/>
+	<context:component-scan base-package="me.zhli.web.surveypark.dao.impl,me.zhli.web.surveypark.service.impl,me.zhli.web.surveypark.struts2.action,me.zhli.web.surveypark.listener"></context:component-scan>
+	
+	<!-- configure data source(main) -->
+	<bean id="dataSource-main" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+		<!-- 不能有空格，例如下面注释的是错的 -->
+		<!-- <property name="user" value="${jdbc.user }"></property> -->		
+		<property name="user" value="${jdbc.user}"></property>		
+		<property name="password" value="${jdbc.password}"></property>		
+		<property name="jdbcUrl" value="${jdbc.jdbcUrlMain}"></property>		
+		<property name="driverClass" value="${jdbc.driverClass}"></property>
+		
+		<property name="maxPoolSize" value="${jdbc.c3p0.maxPoolSize}"></property>		
+		<property name="minPoolSize" value="${jdbc.c3p0.minPoolSize}"></property>		
+		<property name="initialPoolSize" value="${jdbc.c3p0.initialPoolSize}"></property>		
+		<property name="acquireIncrement" value="${jdbc.c3p0.acquireIncrement}"></property>		
+	</bean>
+	<!-- configure data source(main-1)-->
+	<bean id="dataSource-main-1" parent="dataSource-main">
+		<property name="jdbcUrl" value="${jdbc.jdbcUrlMain01}"></property>		
+	</bean>
+	
+	<!-- 配置数据源路由器 -->
+	<bean id="dataSourceRouter" class="me.zhli.web.surveypark.datasource.DataSourceRouter">
+		<!-- 目标数据源集 -->
+		<property name="targetDataSources">
+			<map>
+				<!-- sid（调查 id） 为偶数用副库，奇数用主库 -->
+				<entry key="odd" value-ref="dataSource-main"></entry>
+				<entry key="even" value-ref="dataSource-main-1"></entry>
+			</map>
+		</property>
+		<!-- 默认数据源（主库） -->
+		<property name="defaultTargetDataSource" ref="dataSource-main"></property>
+	</bean>
+	
+	<!-- 本地会话工厂 bean（Spring 整合 Hibernate 的核心入口） -->
+	<bean id="sessionFactory" class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+		<property name="dataSource" ref="dataSourceRouter"></property>
+		<!-- 引入 hibernate.cfg.xml 文件 -->
+		<property name="configLocation" value="classpath:hibernate.cfg.xml"></property>
+		<!-- 映射目录位置 -->
+		<property name="mappingDirectoryLocations">
+			<list>
+				<value>classpath:me/zhli/web/surveypark/model</value>
+			</list>
+		</property>
+		<!-- <property name="mappingLocations" value="classpath:me/zhli/web/surveypark/model/security/Role.bhm.xml"></property> -->
+	</bean>
+	
+	<!-- hibernate事务管理器, 用来在 service 层面上实现事务管理，而且要达到平台无关性 -->
+	<bean id="txManager" class="org.springframework.orm.hibernate4.HibernateTransactionManager">
+		<property name="sessionFactory" ref="sessionFactory"></property>
+	</bean>
+	<!-- 事务通知 -->
+	<tx:advice id="txAdvice" transaction-manager="txManager">
+		<tx:attributes>
+			<!-- write -->
+			<tx:method name="save*" propagation="REQUIRED" isolation="DEFAULT"/>
+			<tx:method name="update*" propagation="REQUIRED" isolation="DEFAULT"/>
+			<tx:method name="delete*" propagation="REQUIRED" isolation="DEFAULT"/>
+			<tx:method name="batch*" propagation="REQUIRED" isolation="DEFAULT"/>
+			<!-- read -->
+			<tx:method name="load*" propagation="REQUIRED" isolation="DEFAULT" read-only="true"/>
+			<tx:method name="get*" propagation="REQUIRED" isolation="DEFAULT" read-only="true"/>
+			<tx:method name="find*" propagation="REQUIRED" isolation="DEFAULT" read-only="true"/>
+			<!-- 以防万一命名时候不规范 -->
+			<tx:method name="*" propagation="REQUIRED" isolation="DEFAULT"/>
+		</tx:attributes>
+	</tx:advice>
+	
+	<!-- 缓存管理器 -->
+	<bean id="cacheManager" class="org.springframework.cache.ehcache.EhCacheCacheManager">
+		<property name="cacheManager" ref="cacheManagerFactoryBean"></property>
+	</bean>
+	<!-- 缓存管理器工厂bean -->
+	<bean id="cacheManagerFactoryBean" class="org.springframework.cache.ehcache.EhCacheManagerFactoryBean">
+		<property name="configLocation" value="classpath:ehcache.xml"></property>
+	</bean>
+	<!-- 自定义缓存 key 生成器 -->
+	<bean id="surveyKeyGenerator" class="me.zhli.web.surveypark.cache.SurveyKeyGenerator"></bean>
+	<!-- 缓存通知 -->
+	<cache:advice id="cacheAdvice" cache-manager="cacheManager" key-generator="surveyKeyGenerator">
+		<cache:caching cache="surveyparkCache">
+			<!-- 要缓存的方法 -->
+			<cache:cacheable method="get*"/>
+			<cache:cacheable method="load*"/>
+			<cache:cacheable method="find*"/>
+			<!-- 不要缓存的方法,调完之后清除缓存 -->
+			<cache:cache-evict method="save*" all-entries="true"/>
+			<cache:cache-evict method="update*" all-entries="true"/>
+			<cache:cache-evict method="delete*" all-entries="true"/>
+			<cache:cache-evict method="clear*" all-entries="true"/>
+			<cache:cache-evict method="toggle*" all-entries="true"/>
+			<cache:cache-evict method="move*" all-entries="true"/>
+			<cache:cache-evict method="batch*" all-entries="true"/>
+			<cache:cache-evict method="execute*" all-entries="true"/>
+			<cache:cache-evict method="new*" all-entries="true"/>
+		</cache:caching>
+	</cache:advice>
+	
+	<!-- 日志记录仪 -->
+	<bean id="logger" class="me.zhli.web.surveypark.advice.Logger"></bean>
+	
+	<!-- aop 配置 -->
+	<aop:config>
+		<!-- 事务切入点通知 -->
+		<aop:advisor advice-ref="txAdvice" pointcut="execution(* *..*Service.*(..))" order="2"/>
+		
+		<!-- 缓存切入点通知 -->
+		<aop:advisor advice-ref="cacheAdvice" pointcut="execution(* *..*Service.get*(..))
+														or execution(* *..*Service.load*(..))
+														or execution(* *..*Service.find*(..))"
+											order="0"/>
+		
+		<!-- <aop:advisor advice-ref="txAdvice" pointcut="execution(* me.zhli.web.surveypark.service.*.*(..))"/> -->
+		<!-- Logger 切面 -->
+		<aop:aspect id="loggerAspect" ref="logger" order="1">
+			<aop:around method="record" pointcut="(execution(* *..*Service.save*(..))
+												or execution(* *..*Service.update*(..))
+												or execution(* *..*Service.delete*(..))
+												or execution(* *..*Service.batch*(..))
+												or execution(* *..*Service.new*(..))
+												or execution(* *..*Service.move*(..))
+												or execution(* *..*Service.clear*(..))
+												or execution(* *..*Service.toggle*(..)))
+												and !bean(logService)
+												"/>
+		</aop:aspect>
+	</aop:config>
+</beans>

@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="me.zhli.web.surveypark.model">
+    <class name="Answer" table="ANSWERS">
+        <id name="id" type="java.lang.Integer">
+            <column name="ID" />
+            <generator class="native" />
+        </id>
+        <property name="answerIds" type="java.lang.String">
+            <column name="ANSWERIDS" />
+        </property>
+        <property name="otherAnswer" type="java.lang.String">
+            <column name="OTHERANSWER" />
+        </property>
+        <property name="uuid" type="java.lang.String">
+            <column name="UUID" />
+        </property>
+        <property name="answearTime" type="java.util.Date">
+            <column name="ANSWEARTIME" />
+        </property>
+        <property name="questionId" type="java.lang.Integer">
+            <column name="QUESTIONID" />
+        </property>
+        <property name="surveyId" type="java.lang.Integer">
+            <column name="SURVEYID" />
+        </property>
+    </class>
+</hibernate-mapping>

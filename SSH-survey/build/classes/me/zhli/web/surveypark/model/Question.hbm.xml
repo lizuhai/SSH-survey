@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="me.zhli.web.surveypark.model">
+    <class name="Question" table="QUESTIONS">
+        <id name="id" type="java.lang.Integer">
+            <column name="ID" />
+            <generator class="native" />
+        </id>
+        <property name="questionType" column="questionType" type="java.lang.Integer"></property>
+        <property name="title" column="title" type="java.lang.String"></property>
+        <property name="options" column="OPTIONS" type="java.lang.String"></property>
+        <property name="other" column="OTHER" type="java.lang.Boolean"></property>
+        <property name="otherStyle" column="otherStyle" type="java.lang.Integer"></property>
+        <property name="otherSelectionOptions" column="otherSelectionOptions" type="java.lang.String"></property>
+        <property name="matrixRowTitles" column="matrixRowTitles" type="java.lang.String"></property>
+        <property name="matrixColTitles" column="matrixColTitles" type="java.lang.String"></property>
+        <property name="matrixSelectionOptions" column="matrixSelectionOptions" type="java.lang.String"></property>
+        
+        <many-to-one name="page" class="Page" column="page_id"></many-to-one>
+        
+    </class>
+</hibernate-mapping>

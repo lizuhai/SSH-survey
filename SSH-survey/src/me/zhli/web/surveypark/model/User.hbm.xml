@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<hibernate-mapping>
+    <class name="me.zhli.web.surveypark.model.User" table="USERS">
+        <id name="id" type="java.lang.Integer">
+            <column name="ID" />
+            <generator class="native" />
+        </id>
+        <property name="email" column="EMAIL" type="java.lang.String" length="20"></property>
+        <property name="name" column="NAME" type="java.lang.String" length="50"></property>
+        <property name="password" column="PASSWORD" type="java.lang.String" length="32"></property>
+        <property name="nickName" column="NICKNAME" type="java.lang.String" length="50"></property>
+        <!-- 不能修改用 update = false -->
+        <property name="regDate" column="REGDATE" type="java.util.Date" length="50" update="false"></property>
+        
+        <set name="roles" table="user_role_link" lazy="false">
+        	<key column="userid"></key>
+        	<many-to-many class="me.zhli.web.surveypark.model.security.Role" column="roleid" />
+        </set>
+    </class>
+</hibernate-mapping>

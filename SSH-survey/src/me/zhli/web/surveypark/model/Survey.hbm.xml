@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="me.zhli.web.surveypark.model">
+    <class name="Survey" table="SURVEYS">
+        <id name="id" type="java.lang.Integer">
+            <column name="ID" />
+            <generator class="native" />
+        </id>
+        <property name="title" column="TITLE" type="java.lang.String"></property>
+        <property name="preText" column="PRETEXT" type="java.lang.String"></property>
+        <property name="nextText" column="NEXTTEXT" type="java.lang.String"></property>
+        <property name="exitText" column="EXITTEXT" type="java.lang.String"></property>
+        <property name="doneText" column="DONETEXT" type="java.lang.String"></property>
+        <property name="createDate" column="CREATEDATE" type="java.util.Date"></property>
+        <!-- update="false" 阻止的是 session的 update 或 saveOrUpdate 方法的更新，不阻止直接用 hql 语句更新 -->
+        <property name="closed" column="CLOSED" type="java.lang.Boolean" update="false"></property>
+        <property name="logoPhotoPath" column="LOGOPHOTOPAHT" type="java.lang.String" length="200" />
+        
+        <property name="minOrderno" formula="(select min(p.orderno) from pages p where p.survey_id = id)" />
+		<property name="maxOrderno" formula="(select max(p.orderno) from pages p where p.survey_id = id)" />
+        
+        <many-to-one name="user" class="User" column="user_id"></many-to-one>
+        
+        <set name="pages" inverse="true" order-by="orderno">
+        	<key column="survey_id"></key>
+        	<one-to-many class="Page"/>
+        </set>
+    </class>
+</hibernate-mapping>
